@@ -1,0 +1,47 @@
+name: tustus deals
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # כל 10 דקות (GitHub לפעמים מאחר בכמה דקות)
+  workflow_dispatch:          # כפתור "Run workflow" להרצה ידנית
+
+permissions:
+  contents: write             # כדי לשמור את state/seen.json בחזרה לריפו
+
+concurrency:
+  group: tustus-deals
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Random delay (0-4 min)
+        if: github.event_name == 'schedule'
+        run: sleep $((RANDOM % 240))
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Check deals
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python check_deals.py
+
+      - name: Save state
+        run: |
+          git config user.name "deals-bot"
+          git config user.email "deals-bot@users.noreply.github.com"
+          git add state/seen.json
+          git diff --cached --quiet || (git commit -m "update seen deals" && git pull --rebase && git push)
