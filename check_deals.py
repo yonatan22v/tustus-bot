@@ -26,8 +26,9 @@ from playwright.sync_api import sync_playwright
 # ================= הגדרות =================
 
 URL = os.environ.get("DEALS_URL", "https://www.tustus.co.il/Arkia/Home")
-TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+# מנקים רווחים / גרשיים / ` שנכנסו בטעות בהעתקה
+TOKEN = os.environ["TELEGRAM_BOT_TOKEN"].strip().strip("`'\" ")
+CHAT_ID = os.environ["TELEGRAM_CHAT_ID"].strip().strip("`'\" ")
 STATE_FILE = Path(os.environ.get("STATE_FILE", "state/seen.json"))
 SHOTS_DIR = Path("shots")
 HISTORY_LIMIT = 3000          # כמה דילים לזכור לכל היותר
@@ -133,6 +134,8 @@ def status_requested() -> bool:
     except Exception as e:
         print("getUpdates failed:", e, file=sys.stderr)
         return False
+    if not r.get("ok"):
+        print("getUpdates error:", r)
     updates = r.get("result", []) if r.get("ok") else []
     asked = False
     for u in updates:
@@ -167,6 +170,13 @@ def main():
     first_run = state is None
     state = state or {"seen": []}
     SHOTS_DIR.mkdir(exist_ok=True)
+
+    # בדיקה שהטוקן תקין – מודפס בלוג
+    try:
+        me = requests.get(f"{TG}/getMe", timeout=30).json()
+        print("telegram bot:", "@" + me["result"]["username"] if me.get("ok") else f"ERROR {me}")
+    except Exception as e:
+        print("telegram check failed:", e)
 
     want_status = status_requested()
     print("status requested:", want_status)
